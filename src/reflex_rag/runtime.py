@@ -31,7 +31,11 @@ class Runtime:
 def build_runtime(settings: Settings | None = None) -> Runtime:
     settings = settings or get_settings()
     if not settings.llm_api_key:
-        raise RuntimeError("缺少 LLM_API_KEY, 请复制 .env.example 为 .env 并填写")
+        raise RuntimeError("缺少 LLM_API_KEY: 请复制 .env.example 为 .env 并填入你的 API key")
+    if not (settings.index_dir / "bm25.pkl").exists():
+        raise RuntimeError(
+            "尚未建立索引: 请先运行 python scripts/fetch_corpus.py && python scripts/ingest.py"
+        )
 
     bm25 = BM25Index.load(settings.index_dir / "bm25.pkl")
     corpus_titles = sorted({c.title for c in bm25.chunks})
