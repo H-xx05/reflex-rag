@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 from reflex_rag.agent.prompts import GENERATOR_SYSTEM
 from reflex_rag.agent.schemas import Citation
@@ -56,20 +56,28 @@ class AnswerGenerator:
         self.llm = llm
 
     def stream(
-        self, question: str, evidence: list[RetrievedChunk], *, extra_instruction: str = ""
+        self,
+        question: str,
+        evidence: list[RetrievedChunk],
+        *,
+        extra_instruction: str = "",
+        usage: Any = None,
     ) -> AsyncIterator[str]:
-        """流式生成答案; 迭代器耗尽后调用方可用 extract_citations 做引用映射。"""
+        """流式生成答案; 迭代器耗尽后调用方可用 extract_citations 做引用映射。
+
+        usage: 可选的 Usage 累积器, 回填流式调用的真实 token 用量。
+        """
         user = (
             f"【用户问题】\n{question}\n\n【检索证据】\n{build_evidence_block(evidence)}"
         )
         if extra_instruction:
             user += f"\n\n【注意】上一版回答存在以下问题, 请修正后重新回答:\n{extra_instruction}"
-        return self._stream(user)
+        return self._stream(user, usage)
 
-    async def _stream(self, user: str) -> AsyncIterator[str]:
+    async def _stream(self, user: str, usage: Any = None) -> AsyncIterator[str]:
         messages = [
             {"role": "system", "content": GENERATOR_SYSTEM},
             {"role": "user", "content": user},
         ]
-        async for delta in self.llm.chat_stream(messages, temperature=0.3):
+        async for delta in self.llm.chat_stream(messages, temperature=0.3, usage=usage):
             yield delta

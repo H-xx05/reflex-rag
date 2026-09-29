@@ -9,8 +9,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import shutil
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
 
 from reflex_rag.agent.schemas import Route
 from reflex_rag.config import PROFILES, EvalProfile, Settings, get_settings
@@ -56,10 +59,18 @@ def evidence_digest(evidence: list[RetrievedChunk]) -> str:
 class EvalRunner:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
-        # 重资源共享单例: 本地 Qdrant 存储不可被多个客户端同时打开
+        # 重资源共享单例
         self.llm = LLMClient(self.settings)
         self.embedding = EmbeddingClient(self.settings)
-        self.store = VectorStore(self.settings.index_dir / "qdrant", self.settings.qdrant_collection)
+        # 本地 Qdrant 是独占文件锁, Web 服务运行时会挡住评测进程。
+        # 评测对索引只读(摄取后不变), 复制一份快照即可安全解耦。
+        src = self.settings.index_dir / "qdrant"
+        snapshot = self.settings.index_dir / "qdrant_eval_snapshot"
+        if snapshot.exists():
+            shutil.rmtree(snapshot)
+        # .lock 被运行中的服务持有, 快照跳过它(Qdrant 打开时会自建)
+        shutil.copytree(src, snapshot, ignore=shutil.ignore_patterns(".lock"))
+        self.store = VectorStore(snapshot, self.settings.qdrant_collection)
         self.bm25 = BM25Index.load(self.settings.index_dir / "bm25.pkl")
         self.judge = AnswerJudge(self.llm)
         self.judge_usage = Usage()
@@ -113,6 +124,7 @@ class EvalRunner:
         profile_names: list[str],
         *,
         concurrency: int = 4,
+        checkpoint_dir: Path | None = None,
     ) -> list[dict]:
         sem = asyncio.Semaphore(concurrency)
         rows = []
@@ -159,9 +171,13 @@ class EvalRunner:
 
             results: list[E2EItemResult] = await asyncio.gather(*[one(it) for it in items])
             rows.append(self._aggregate(pname, results))
-            self.last_e2e_items.extend(
-                {**r.model_dump(), "config": pname} for r in results
-            )
+            self.last_e2e_items.extend({**asdict(r), "config": pname} for r in results)
+            # 每个配置跑完立即落盘, 防止后续配置异常导致整轮白跑
+            if checkpoint_dir:
+                checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                (checkpoint_dir / "per_item.json").write_text(
+                    json.dumps(self.last_e2e_items, ensure_ascii=False, indent=1), encoding="utf-8"
+                )
             print(f"[e2e] 配置 {pname} 完成: {rows[-1]['route_accuracy']:.0%} 路由准确率")
         return rows
 

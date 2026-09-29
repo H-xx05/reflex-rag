@@ -94,7 +94,12 @@ class LLMClient:
     async def chat_stream(
         self, messages: list[dict[str, str]], **kwargs: Any
     ) -> AsyncIterator[str]:
-        """流式补全,逐段 yield 增量文本;异常时已重试过则直接抛出。"""
+        """流式补全,逐段 yield 增量文本。
+
+        传入 usage=Usage 实例时, 从流的 usage 尾帧回填真实 token 用量;
+        供应商不回传时由调用方自行估算。异常时已重试过则直接抛出。
+        """
+        usage: Usage | None = kwargs.pop("usage", None)
         for attempt in range(2):
             try:
                 stream = await self._client.chat.completions.create(
@@ -112,6 +117,14 @@ class LLMClient:
                 async for chunk in stream:
                     if chunk.choices and chunk.choices[0].delta.content:
                         yield chunk.choices[0].delta.content
+                    elif chunk.usage is not None and usage is not None:
+                        usage.add(
+                            Usage(
+                                prompt_tokens=chunk.usage.prompt_tokens or 0,
+                                completion_tokens=chunk.usage.completion_tokens or 0,
+                                llm_calls=1,
+                            )
+                        )
                 return
             except _RETRYABLE:
                 if attempt == 1:

@@ -55,6 +55,7 @@ async def main() -> int:
 
     runner = EvalRunner(settings)
     retrieval_rows, e2e_rows, per_item = None, None, None
+    out_dir = PROJECT_ROOT / "data" / "eval_reports" / time.strftime("%Y%m%d-%H%M%S")
 
     if not args.skip_retrieval:
         print("== 检索基准(纯代码指标) ==")
@@ -68,7 +69,9 @@ async def main() -> int:
         profiles = [p.strip() for p in args.e2e_profiles.split(",")]
         print(f"== 端到端基准: {len(subset)} 题 × {profiles}, 并发 {args.concurrency} ==")
         t0 = time.perf_counter()
-        e2e_rows = await runner.run_e2e(subset, profiles, concurrency=args.concurrency)
+        e2e_rows = await runner.run_e2e(
+            subset, profiles, concurrency=args.concurrency, checkpoint_dir=out_dir
+        )
         print(f"端到端耗时 {time.perf_counter() - t0:.0f}s, 裁判 tokens: "
               f"{runner.judge_usage.prompt_tokens}+{runner.judge_usage.completion_tokens}")
         per_item = runner.last_e2e_items

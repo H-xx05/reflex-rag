@@ -113,13 +113,17 @@ class AgentPipeline:
             if history:
                 msgs += history[-2:]
             msgs.append({"role": "user", "content": question})
-            async for delta in self.llm.chat_stream(msgs, temperature=0.5, max_tokens=120):
+            calls_before = usage.llm_calls
+            async for delta in self.llm.chat_stream(
+                msgs, temperature=0.5, max_tokens=120, usage=usage
+            ):
                 chunks.append(delta)
                 if on_delta:
                     await on_delta(delta)
             answer = "".join(chunks)
-            usage.completion_tokens += len(answer) // 2
-            usage.llm_calls += 1
+            if usage.llm_calls == calls_before:  # 供应商未回传用量时估算
+                usage.completion_tokens += len(answer) // 2
+                usage.llm_calls += 1
             await emit(
                 TraceEvent(
                     step="generate", latency_ms=int((time.perf_counter() - t1) * 1000),
@@ -137,13 +141,15 @@ class AgentPipeline:
             # 3. 流式生成
             t2 = time.perf_counter()
             chunks = []
-            async for delta in self.generator.stream(question, evidence):
+            calls_before = usage.llm_calls
+            async for delta in self.generator.stream(question, evidence, usage=usage):
                 chunks.append(delta)
                 if on_delta:
                     await on_delta(delta)
             answer = "".join(chunks)
-            usage.completion_tokens += len(answer) // 2
-            usage.llm_calls += 1
+            if usage.llm_calls == calls_before:  # 供应商未回传用量时估算
+                usage.completion_tokens += len(answer) // 2
+                usage.llm_calls += 1
             await emit(
                 TraceEvent(
                     step="generate",
@@ -199,10 +205,14 @@ class AgentPipeline:
     ) -> str:
         fix = f"引用编号越界: {verification.unknown_citations}。只允许引用 1~{len(evidence)} 的编号。"
         chunks = []
-        async for delta in self.generator.stream(question, evidence, extra_instruction=fix):
+        calls_before = usage.llm_calls
+        async for delta in self.generator.stream(
+            question, evidence, extra_instruction=fix, usage=usage
+        ):
             chunks.append(delta)
             if on_delta:
                 await on_delta(delta)
-        usage.llm_calls += 1
-        usage.completion_tokens += len("".join(chunks)) // 2
+        if usage.llm_calls == calls_before:  # 供应商未回传用量时估算
+            usage.llm_calls += 1
+            usage.completion_tokens += len("".join(chunks)) // 2
         return "".join(chunks)

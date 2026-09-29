@@ -1,0 +1,1 @@
+{"config": "naive", "n": 44, "route_accuracy": 0.2727, "refusal_accuracy": 1.0, "faithfulness_0_5": 2.86, "correctness_0_5": 3.64, "evidence_recall@8": 0.8409, "avg_rounds": 1.0, "avg_citations": 4.91, "p50_latency_ms": 39409, "p95_latency_ms": 170409, "avg_prompt_tokens": 0.0, "avg_completion_tokens": 482.0, "judge_tokens": 0}
