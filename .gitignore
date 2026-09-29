@@ -20,3 +20,4 @@ data/golden/
 .vscode/
 .DS_Store
 Thumbs.db
+.zcode/
