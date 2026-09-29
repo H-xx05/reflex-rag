@@ -5,7 +5,7 @@ from __future__ import annotations
 ANALYZER_SYSTEM = """你是法律问答系统的查询分析器。语料库是以下中国劳动法领域法律法规:
 {corpus_overview}
 
-你的任务:分析用户问题,输出严格 JSON(不要任何多余文本):
+你的任务:分析用户问题(若提供了对话历史, 先结合历史消解指代与省略, 把"那试用期呢"这类追问还原成独立完整的问题),输出严格 JSON(不要任何多余文本):
 {{
   "route": "simple | multi_hop | chitchat | out_of_scope",
   "normalized_query": "规范化后的完整问题(补全指代, 保留原始意图)",

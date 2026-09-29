@@ -83,16 +83,24 @@ uvicorn reflex_rag.api.main:app --reload
 # Windows 下也可直接双击 start_web.bat
 ```
 
-## 评测(开发中)
+## 评测
 
-`data/golden/` 金标集: 单跳事实 / 多跳综合 / 闲聊 / 超范围拒答 四类问题,
-标注证据条文与期望路由。评测流水线输出:
+`data/golden/golden.jsonl` 金标集:单跳事实 / 多跳综合 / 闲聊 / 超范围拒答四类问题,
+带金标条文块与标准答案;由种子题 + LLM 反向出题生成(`scripts/build_golden.py`,固定随机种子可复现)。
 
-- 检索: recall@{5,10}、MRR@10、nDCG@10(基于金标 chunk);
-- 路由准确率、拒答正确率;
-- 生成: LLM-as-judge 忠实度与相关性、引用精确率;
-- 效率: p50/p95 延迟、token 用量与成本;
-- 多配置对比(朴素向量 RAG / +BM25 / +rerank / 完整系统)报告与图表。
+```bash
+python scripts/build_golden.py            # 构建金标集(一次性, 已入库)
+python scripts/run_eval.py                # 检索基准(全量) + 端到端基准(分层子集)
+python scripts/run_eval.py --skip-e2e     # 只跑检索基准(零 LLM 生成成本)
+```
+
+评测产出(`data/eval_reports/<时间戳>/`,含 metrics.json / report.md / charts.png):
+
+- **检索质量**(纯代码指标):naive 纯向量 vs hybrid(+BM25+RRF) 的 recall@k / MRR / nDCG;
+- **端到端质量**:naive → hybrid → full 三档配置的路由准确率、超范围拒答正确率、
+  LLM-as-judge 忠实性与正确性(0~5)、证据召回、p50/p95 延迟、token 成本;
+- **消融开关**:`EvalProfile`(src/reflex_rag/config.py)逐项关闭路由/混合检索/补检/校验,
+  每个模块的贡献都有数字可证。
 
 ## 项目结构
 

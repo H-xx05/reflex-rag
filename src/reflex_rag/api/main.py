@@ -23,8 +23,14 @@ from reflex_rag.runtime import Runtime, build_runtime
 STATIC_DIR = Path(__file__).parent / "static"
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
     question: str
+    history: list[ChatMessage] = []  # 最近对话, 供指代消解; 服务端只取末尾若干条
 
 
 @asynccontextmanager
@@ -81,7 +87,10 @@ async def chat(req: ChatRequest):
         async def run() -> None:
             try:
                 result = await runtime.pipeline.answer(
-                    req.question, on_event=on_event, on_delta=on_delta
+                    req.question,
+                    history=[m.model_dump() for m in req.history[-6:]],
+                    on_event=on_event,
+                    on_delta=on_delta,
                 )
                 await queue.put(final_payload(result))
             except Exception as exc:  # noqa: BLE001 — 错误也走事件流, 前端统一渲染

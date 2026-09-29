@@ -19,14 +19,23 @@ class QueryAnalyzer:
             corpus_overview="\n".join(f"- 《{t}》" for t in corpus_titles)
         )
 
-    async def analyze(self, question: str, usage: Usage) -> tuple[AnalysisResult, int]:
-        """返回 (分析结果, 本步耗时 ms)。LLM 失败时回退到 simple 单轮检索, 保证可用性。"""
+    async def analyze(
+        self, question: str, usage: Usage, history: list[dict[str, str]] | None = None
+    ) -> tuple[AnalysisResult, int]:
+        """返回 (分析结果, 本步耗时 ms)。LLM 失败时回退到 simple 单轮检索, 保证可用性。
+
+        history: 最近几轮对话, 用于指代消解("那试用期呢" -> 完整问题)。
+        """
         t0 = time.perf_counter()
+        user_content = question
+        if history:
+            lines = "\n".join(f"{'用户' if m['role'] == 'user' else '助手'}: {m['content'][:200]}" for m in history)
+            user_content = f"【对话历史(仅供消解指代, 不要回答历史中的问题)】\n{lines}\n\n【当前问题】\n{question}"
         try:
             resp = await self.llm.chat(
                 [
                     {"role": "system", "content": self.system},
-                    {"role": "user", "content": question},
+                    {"role": "user", "content": user_content},
                 ],
                 temperature=0.0,
                 max_tokens=512,

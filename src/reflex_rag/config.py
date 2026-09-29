@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
@@ -64,3 +65,23 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+@dataclass(frozen=True)
+class EvalProfile:
+    """系统消融开关: 评测流水线用它构建「朴素 RAG → 完整系统」的对比配置。"""
+
+    name: str
+    use_analyzer: bool = True  # False: 不做路由, 恒按 simple 单轮处理
+    use_hybrid: bool = True  # False: 仅向量检索(无 BM25/RRF 融合)
+    use_sufficiency: bool = True  # False: 检索一轮即生成, 无补检循环
+    use_critic: bool = True  # False: 跳过引用/忠实性校验
+
+
+#: 评测配置矩阵: 从"LangChain+向量库读文档"式基线到完整系统
+PROFILES: dict[str, EvalProfile] = {
+    "naive": EvalProfile("naive", use_analyzer=False, use_hybrid=False, use_sufficiency=False, use_critic=False),
+    "hybrid": EvalProfile("hybrid", use_analyzer=False, use_sufficiency=False, use_critic=False),
+    "adaptive": EvalProfile("adaptive", use_critic=False),
+    "full": EvalProfile("full"),
+}

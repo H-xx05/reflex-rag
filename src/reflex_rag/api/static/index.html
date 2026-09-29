@@ -78,6 +78,7 @@
 const $ = s => document.querySelector(s);
 const ROUTE_CN = { simple: "单跳检索", multi_hop: "多跳分解", chitchat: "闲聊直答", out_of_scope: "礼貌拒答" };
 let busy = false;
+let hist = [];   // {role, content}, 供指代消解
 
 $("#q").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
 $("#send").addEventListener("click", send);
@@ -94,10 +95,11 @@ async function send() {
   const body = document.createElement("div");
   body.classList.add("caret");
   bot.appendChild(body);
+  let answerText = "";
 
   const resp = await fetch("/api/chat", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question: q })
+    body: JSON.stringify({ question: q, history: hist.slice(-6) })
   });
   const reader = resp.body.getReader();
   const dec = new TextDecoder();
@@ -110,16 +112,21 @@ async function send() {
     while ((i = buf.indexOf("\n\n")) >= 0) {
       const line = buf.slice(0, i).trim(); buf = buf.slice(i + 2);
       if (!line.startsWith("data: ")) continue;
-      handle(JSON.parse(line.slice(6)), body);
+      const ev = JSON.parse(line.slice(6));
+      if (ev.type === "delta") answerText += ev.text;
+      handle(ev, body);
     }
   }
   body.classList.remove("caret");
+  hist.push({ role: "user", content: q });
+  hist.push({ role: "assistant", content: answerText });
+  if (hist.length > 12) hist = hist.slice(-12);
   busy = false; $("#send").disabled = false; $("#q").focus();
 }
 
 function handle(ev, body) {
   if (ev.type === "delta") { body.textContent += ev.text; scrollBottom(); }
-  else if (ev.type === "stage") addStage(ev);
+  else if (ev.type === "stage") addStage(ev, body);
   else if (ev.type === "final") {
     renderFinal(ev, body);
   } else if (ev.type === "error") {
@@ -127,10 +134,15 @@ function handle(ev, body) {
   }
 }
 
-function addStage(ev) {
+function addStage(ev, body) {
   const div = document.createElement("div");
   div.className = "stage";
   const stepCN = { analyze: "① 路由分析", retrieve: "② 检索", sufficiency: "③ 充分性判定", generate: "④ 生成", verify: "⑤ 引用校验" };
+  if (ev.data && ev.data.regenerate) {
+    // 引用越界触发修正重生成: 清空旧答案, 等待新流覆盖
+    body.textContent = "";
+    body.parentElement.querySelectorAll(".cite-chips").forEach(n => n.remove());
+  }
   let detail = "";
   if (ev.step === "analyze") detail = `<b>${ROUTE_CN[ev.data.route] || ev.data.route}</b>  ${ev.data.reason || ""}` + (ev.data.sub_queries?.length ? `\n子查询: ${ev.data.sub_queries.join(" / ")}` : "");
   if (ev.step === "retrieve") detail = `第 ${ev.data.round} 轮 · 命中 <b>${ev.data.hits}</b> 块\n查询: ${ev.data.queries.join(" / ")}`;
@@ -150,6 +162,7 @@ function renderFinal(ev, body) {
     <span>tokens <b>${ev.usage.prompt_tokens}+${ev.usage.completion_tokens}</b></span>`;
   if (ev.citations.length) {
     const chips = document.createElement("div");
+    chips.className = "cite-chips";
     chips.innerHTML = ev.citations.map(c =>
       `<span class="cite-chip" title="${c.title} ${c.chapter} ${c.articles.join("、")}">[${c.n}] ${c.title}${c.articles.length ? " " + c.articles.join("、") : ""}</span>`).join("");
     body.appendChild(chips);

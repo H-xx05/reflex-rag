@@ -25,12 +25,15 @@ class HybridRetriever:
         vector_store: VectorStore,
         bm25: BM25Index,
         reranker: BaseReranker,
+        *,
+        use_bm25: bool = True,
     ) -> None:
         self.settings = settings
         self.embedding = embedding
         self.vector_store = vector_store
         self.bm25 = bm25
         self.reranker = reranker
+        self.use_bm25 = use_bm25
 
     async def retrieve(
         self,
@@ -42,9 +45,11 @@ class HybridRetriever:
         """queries: 本轮要执行的全部查询(原始问题或子查询); 返回去重后的最终证据。"""
         top_k = top_k or self.settings.final_top_k
         k = self.settings.retrieve_top_k
-        vec_lists, bm25_lists = await asyncio.gather(
-            asyncio.gather(*[self._vector_search(q, k) for q in queries]),
-            asyncio.gather(*[self._bm25_search(q, k) for q in queries]),
+        vec_lists = await asyncio.gather(*[self._vector_search(q, k) for q in queries])
+        bm25_lists = (
+            await asyncio.gather(*[self._bm25_search(q, k) for q in queries])
+            if self.use_bm25
+            else [[] for _ in queries]
         )
 
         # 第一步: 每个查询内部, 向量路 + BM25 路 RRF 融合

@@ -7,10 +7,8 @@ __pycache__/
 .ruff_cache/
 dist/
 
-# 索引与评测产物(可重建,不入库)
+# 索引产物(可重建,不入库); 金标集与评测报告是项目资产, 入库
 data/index/
-data/eval_reports/
-data/golden/
 
 # 密钥
 .env

@@ -23,9 +23,14 @@ class RetrievalExecutor:
         self.settings = settings
 
     async def run(
-        self, question: str, analysis: AnalysisResult, usage: Usage
+        self,
+        question: str,
+        analysis: AnalysisResult,
+        usage: Usage,
+        *,
+        judge_enabled: bool = True,
     ) -> tuple[list[RetrievedChunk], int, list[TraceEvent]]:
-        """返回 (最终证据, 实际轮数, 过程事件)。"""
+        """返回 (最终证据, 实际轮数, 过程事件)。judge_enabled=False 时退化为单轮检索。"""
         events: list[TraceEvent] = []
         max_extra = (
             self.settings.max_extra_rounds_simple
@@ -44,8 +49,9 @@ class RetrievalExecutor:
                 data={"round": 1, "queries": queries, "hits": len(evidence)},
             )
         )
-
         rounds = 1
+        if not judge_enabled:
+            return evidence, rounds, events
         while rounds <= max_extra:
             t1 = time.perf_counter()
             verdict = await self._judge(question, evidence, usage)
