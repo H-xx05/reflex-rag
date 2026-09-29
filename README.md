@@ -79,7 +79,8 @@ python scripts/ask.py "试用期最长多久" --trace
 
 # 5. Web 演示(带 Agent 思考过程可视化)
 uvicorn reflex_rag.api.main:app --reload
-# 浏览器打开 http://127.0.0.1:8000
+# 浏览器打开 http://127.0.0.1:8000 (服务随终端关闭而停止)
+# Windows 下也可直接双击 start_web.bat
 ```
 
 ## 评测(开发中)
