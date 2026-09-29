@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-chat"
     llm_temperature: float = 0.2
     llm_max_tokens: int = 2048
+    # 透传给 /chat/completions 的额外 JSON 体, 例: {"enable_thinking": false}
+    # (通义 qwen3 系列关思考模式, 省 ~90% 输出 token)
+    llm_extra_body_json: str = ""
 
     # ---- Embedding(留空则复用 LLM 的连接信息) ----
     embed_base_url: str = ""

@@ -53,6 +53,9 @@ class LLMClient:
             timeout=60.0,
             max_retries=0,  # 重试自己控制,便于记录
         )
+        self.extra_body: dict[str, Any] | None = None
+        if settings.llm_extra_body_json.strip():
+            self.extra_body = json.loads(settings.llm_extra_body_json)
 
     async def chat(
         self,
@@ -72,6 +75,7 @@ class LLMClient:
                     messages=messages,
                     temperature=self.settings.llm_temperature if temperature is None else temperature,
                     max_tokens=max_tokens or self.settings.llm_max_tokens,
+                    extra_body=self.extra_body,
                 )
                 latency = int((time.perf_counter() - start) * 1000)
                 usage = Usage(
@@ -113,6 +117,7 @@ class LLMClient:
                     max_tokens=kwargs.get("max_tokens") or self.settings.llm_max_tokens,
                     stream=True,
                     stream_options={"include_usage": True},
+                    extra_body=self.extra_body,
                 )
                 async for chunk in stream:
                     if chunk.choices and chunk.choices[0].delta.content:

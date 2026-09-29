@@ -136,8 +136,17 @@ class EvalRunner:
             async def one(item: GoldenItem) -> E2EItemResult:
                 async with sem:
                     t0 = time.perf_counter()
-                    usage = Usage()
-                    res = await rt.pipeline.answer(item.question)
+                    try:
+                        res = await rt.pipeline.answer(item.question)
+                    except Exception as exc:  # noqa: BLE001 — 单题失败不炸整轮, 记为错误样本
+                        return E2EItemResult(
+                            id=item.id,
+                            expected_route=item.expected_route.value,
+                            pred_route="error",
+                            route_ok=False,
+                            latency_ms=int((time.perf_counter() - t0) * 1000),
+                            issues=[f"pipeline_error: {str(exc)[:120]}"],
+                        )
                     rec = E2EItemResult(
                         id=item.id,
                         expected_route=item.expected_route.value,
