@@ -28,7 +28,9 @@ class Settings(BaseSettings):
     embed_base_url: str = ""
     embed_api_key: str = ""
     embed_model: str = ""
-    embed_batch_size: int = 32
+    # 各家 /embeddings 单请求条数上限不同: 通义 DashScope ≤20, SiliconFlow 宽松得多。
+    # 默认取保守值 10, 客户端还会在超限时自动降批, 用 SiliconFlow 可在 .env 调大。
+    embed_batch_size: int = 10
 
     # ---- 检索 ----
     retrieve_top_k: int = 24  # 向量/BM25 每路召回条数

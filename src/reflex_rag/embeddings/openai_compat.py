@@ -1,14 +1,52 @@
-"""OpenAI 兼容 /embeddings 接口客户端(适配 SiliconFlow / 通义 / 智谱等)。"""
+"""OpenAI 兼容 /embeddings 接口客户端(适配 SiliconFlow / 通义 / 智谱等)。
+
+各供应商对单请求条数/长度上限不一(通义 ≤20 条), 这里做了自适应降批:
+超限错误自动把批量减半重试, 换供应商无需改代码。
+"""
 
 from __future__ import annotations
 
 import asyncio
 import random
+import re
 import time
+from collections.abc import Awaitable, Callable
 
-from openai import APIConnectionError, AsyncOpenAI, RateLimitError
+from openai import APIConnectionError, AsyncOpenAI, BadRequestError, RateLimitError
 
 from reflex_rag.config import Settings
+
+_BATCH_HINT = re.compile(r"batch|contents|too many|exceed|limit", re.IGNORECASE)
+
+
+async def embed_in_batches(
+    texts: list[str],
+    call: Callable[[list[str]], Awaitable[list[list[float]]]],
+    initial_size: int,
+    *,
+    throttle_s: float = 0.2,
+) -> list[list[float]]:
+    """按批嵌入并保持输入顺序; 遇到批量/长度超限的 400 错误自动减半重试。
+
+    call: 单次网络调用(一批文本 -> 一批向量), 由调用方注入, 便于测试替换。
+    """
+    out: list[list[float]] = []
+    i, size = 0, max(1, initial_size)
+    while i < len(texts):
+        try:
+            out.extend(await call(texts[i : i + size]))
+            i += size
+            if i < len(texts):
+                await asyncio.sleep(throttle_s)
+        except BadRequestError as exc:
+            if size == 1 or not _BATCH_HINT.search(str(exc)):
+                raise
+            size = max(1, size // 2)
+            print(
+                f"[warn] Embedding 批量被供应商拒绝, 自动降批至 {size} 条/次"
+                f"(可在 .env 调大 embed_batch_size): {str(exc)[:120]}"
+            )
+    return out
 
 
 class EmbeddingClient:
@@ -37,14 +75,9 @@ class EmbeddingClient:
         raise RuntimeError(f"Embedding 调用失败: {last_exc}") from last_exc
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        """批量嵌入, 自动分批 + 限速, 保持输入顺序。"""
-        out: list[list[float]] = []
-        batch = self.settings.embed_batch_size
-        for i in range(0, len(texts), batch):
-            out.extend(await self._embed(texts[i : i + batch]))
-            if i + batch < len(texts):
-                await asyncio.sleep(0.2)
-        return out
+        return await embed_in_batches(
+            texts, self._embed, self.settings.embed_batch_size
+        )
 
     async def embed_query(self, text: str) -> list[float]:
         return (await self._embed([text]))[0]
