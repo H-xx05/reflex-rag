@@ -19,3 +19,4 @@ data/index/
 .DS_Store
 Thumbs.db
 .zcode/
+.mimosa/
