@@ -159,8 +159,6 @@ class EvalRunner:
                         completion_tokens=res.usage.completion_tokens,
                         answer=res.answer,
                     )
-                    usage.prompt_tokens += res.usage.prompt_tokens
-                    usage.completion_tokens += res.usage.completion_tokens
 
                     if item.gold_chunk_ids:
                         rec.evidence_recall = round(
@@ -191,26 +189,29 @@ class EvalRunner:
         return rows
 
     def _aggregate(self, pname: str, rs: list[E2EItemResult]) -> dict:
-        oos = [r for r in rs if r.expected_route == Route.out_of_scope.value]
-        qa = [r for r in rs if r.expected_route in (Route.simple.value, Route.multi_hop.value)]
+        # 错误样本(连接失败等)单独计错误率, 不混入任何均值, 避免拉低/扭曲指标
+        ok = [r for r in rs if r.pred_route != "error"]
+        oos = [r for r in ok if r.expected_route == Route.out_of_scope.value]
+        qa = [r for r in ok if r.expected_route in (Route.simple.value, Route.multi_hop.value)]
         ref_ok = [r.refusal_ok for r in oos if r.refusal_ok is not None]
         faith = [r.faithfulness for r in qa if r.faithfulness is not None and r.faithfulness >= 0]
         corr = [r.correctness for r in qa if r.correctness is not None and r.correctness >= 0]
         ev = [r.evidence_recall for r in qa if r.evidence_recall is not None]
-        lat = [float(r.latency_ms) for r in rs]
+        lat = [float(r.latency_ms) for r in ok]
         return {
             "config": pname,
             "n": len(rs),
-            "route_accuracy": round(mean([float(r.route_ok) for r in rs]), 4),
+            "error_rate": round(1 - len(ok) / len(rs), 4) if rs else 0.0,
+            "route_accuracy": round(mean([float(r.route_ok) for r in ok]), 4) if ok else None,
             "refusal_accuracy": round(mean([float(x) for x in ref_ok]), 4) if ref_ok else None,
             "faithfulness_0_5": round(mean([float(x) for x in faith]), 2) if faith else None,
             "correctness_0_5": round(mean([float(x) for x in corr]), 2) if corr else None,
             "evidence_recall@8": round(mean(ev), 4) if ev else None,
-            "avg_rounds": round(mean([float(r.rounds) for r in rs]), 2),
-            "avg_citations": round(mean([float(r.n_citations) for r in rs]), 2),
-            "p50_latency_ms": int(percentile(lat, 50)),
-            "p95_latency_ms": int(percentile(lat, 95)),
-            "avg_prompt_tokens": round(mean([float(r.prompt_tokens) for r in rs]), 0),
-            "avg_completion_tokens": round(mean([float(r.completion_tokens) for r in rs]), 0),
+            "avg_rounds": round(mean([float(r.rounds) for r in ok]), 2) if ok else None,
+            "avg_citations": round(mean([float(r.n_citations) for r in ok]), 2) if ok else None,
+            "p50_latency_ms": int(percentile(lat, 50)) if lat else None,
+            "p95_latency_ms": int(percentile(lat, 95)) if lat else None,
+            "avg_prompt_tokens": round(mean([float(r.prompt_tokens) for r in ok]), 0) if ok else None,
+            "avg_completion_tokens": round(mean([float(r.completion_tokens) for r in ok]), 0) if ok else None,
             "judge_tokens": self.judge_usage.prompt_tokens + self.judge_usage.completion_tokens,
         }

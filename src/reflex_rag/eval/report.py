@@ -55,12 +55,13 @@ def save_report(
         lines += [
             "## 二、端到端质量(完整 pipeline + LLM 裁判)",
             "",
-            "| 配置 | n | 路由准确率 | 拒答正确率 | 忠实性(0-5) | 正确性(0-5) | 证据召回 | 平均轮次 | p50延迟 | p95延迟 |",
-            "|---|---|---|---|---|---|---|---|---|---|",
+            "| 配置 | n | 错误率 | 路由准确率 | 拒答正确率 | 忠实性(0-5) | 正确性(0-5) | 证据召回 | 平均轮次 | p50延迟 | p95延迟 |",
+            "|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for r in e2e_rows:
             lines.append(
                 f"| {CONFIG_CN.get(r['config'], r['config'])} | {r['n']} "
+                f"| {r.get('error_rate', 0):.0%} "
                 f"| {r['route_accuracy']:.0%} "
                 f"| {f'{r["refusal_accuracy"]:.0%}' if r['refusal_accuracy'] is not None else '-'} "
                 f"| {r['faithfulness_0_5'] if r['faithfulness_0_5'] is not None else '-'} "
