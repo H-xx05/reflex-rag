@@ -1,6 +1,6 @@
 # ReflexRAG · 自适应反思式检索问答系统
 
-[![CI](https://github.com/YOUR_USERNAME/reflex-rag/actions/workflows/ci.yml/badge.svg)](../../actions)
+[![CI](https://github.com/H-xx05/reflex-rag/actions/workflows/ci.yml/badge.svg)](../../actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](pyproject.toml)
 
