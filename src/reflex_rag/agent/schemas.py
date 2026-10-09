@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 from reflex_rag.schemas import RetrievedChunk
 
 
-class Route(str, Enum):
+class Route(StrEnum):
     chitchat = "chitchat"  # 闲聊/寒暄, 免检索直答
     simple = "simple"  # 单跳事实型, 一轮检索
     multi_hop = "multi_hop"  # 多跳/综合判断, 查询分解 + 迭代检索

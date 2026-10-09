@@ -18,7 +18,7 @@ async def ingest(settings: Settings, *, rebuild: bool = False) -> dict:
     t0 = time.perf_counter()
     docs = load_corpus(settings.corpus_dir)
     chunks: list[Chunk] = [c for doc in docs for c in chunk_document(doc)]
-    print(f"语料 {len(docs)} 篇 -> 分块 {len(chunks)} 个, 平均 {sum(map(lambda c: len(c.text), chunks))//len(chunks)} 字/块")
+    print(f"语料 {len(docs)} 篇 -> 分块 {len(chunks)} 个, 平均 {sum(map(lambda c: len(c.text), chunks))//len(chunks)} 字/块")  # noqa: E501
 
     embedding = EmbeddingClient(settings)
     dim = await embedding.dimension()

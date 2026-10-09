@@ -6,8 +6,7 @@ import time
 
 from reflex_rag.agent.prompts import ANALYZER_SYSTEM
 from reflex_rag.agent.schemas import AnalysisResult, Route
-from reflex_rag.llm.client import LLMClient, parse_json_dict
-from reflex_rag.llm.client import Usage
+from reflex_rag.llm.client import LLMClient, Usage, parse_json_dict
 
 _VALID_ROUTES = {r.value for r in Route}
 

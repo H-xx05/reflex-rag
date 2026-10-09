@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     index_dir: Path = PROJECT_ROOT / "data" / "index"
     corpus_dir: Path = PROJECT_ROOT / "data" / "corpus"
     qdrant_collection: str = "reflex_rag"
+    # 留空 = 本地嵌入模式(独占文件锁); 填 http://host:6333 = 服务端模式, 支持多进程/容器并发
+    qdrant_url: str = ""
 
     @property
     def embed_base(self) -> str:

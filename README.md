@@ -1,7 +1,26 @@
 # ReflexRAG · 自适应反思式检索问答系统
 
+[![CI](https://github.com/YOUR_USERNAME/reflex-rag/actions/workflows/ci.yml/badge.svg)](../../actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](pyproject.toml)
+
 > 面向劳动法领域的 Agentic RAG 问答系统:Agent 自主决策「何时检索、怎么检索」,
 > 不够就自我纠正地补检索, 每个结论可溯源到法条原文, 并配套自动化评测流水线。
+
+## 评测结果(44 题金标集, 消融对比)
+
+| 指标 | 朴素RAG | +混合检索 | **完整系统** |
+|---|---|---|---|
+| 路由准确率 | 27% | 27% | **75%** |
+| 超范围拒答正确率 | 83% | 92% | **100%** |
+| 忠实性(LLM裁判, 0-5) | 2.62 | 3.19 | **3.45** |
+| 证据召回@8 | 0.841 | 0.909 | 0.636¹ |
+| p50 延迟 | 4.2s | 4.1s | **2.3s** |
+
+¹ 多跳子查询分摊 top-8 名额所致, 已定位为下一步调优点(见 [docs/DESIGN.md](docs/DESIGN.md) #7)。
+检索层单独基准(51 题金标条文):纯向量 recall@8 0.892 → 混合检索 0.912。
+
+完整报告与逐题明细: [data/eval_reports/](data/eval_reports/), 复跑: `python scripts/run_eval.py`。
 
 ## 为什么不是又一个「LangChain + Chroma 读 PDF」
 
@@ -83,6 +102,18 @@ uvicorn reflex_rag.api.main:app --reload
 # Windows 下也可直接双击 start_web.bat
 ```
 
+### Docker 部署
+
+```bash
+cp .env.example .env   # 填入你的 key
+docker compose up -d --build
+docker compose exec api python scripts/ingest.py --rebuild   # 首次建索引
+# 打开 http://127.0.0.1:8000
+```
+
+compose 内 Qdrant 跑在服务端模式(`QDRANT_URL`), 多客户端可并发访问,
+不存在本地嵌入模式的独占文件锁问题。
+
 ## 评测
 
 `data/golden/golden.jsonl` 金标集:单跳事实 / 多跳综合 / 闲聊 / 超范围拒答四类问题,
@@ -127,7 +158,18 @@ src/reflex_rag/
 │   ├── generator.py       # 流式生成 + 引用提取
 │   ├── critic.py          # 两级答案审查
 │   └── pipeline.py        # 全链路编排 + Trace
+├── eval/
+│   ├── dataset.py         # 金标集读写
+│   ├── metrics.py         # recall/MRR/nDCG(纯代码)
+│   ├── judge.py           # LLM-as-judge
+│   ├── runner.py          # 多配置评测执行器(断点续跑)
+│   └── report.py          # markdown 报告 + 图表
 └── api/main.py            # FastAPI + SSE
+
+scripts/                    # fetch_corpus / ingest / ask / build_golden / run_eval
+docs/                       # DESIGN(设计决策) / RESUME(简历表述) / INTERVIEW(面试问答)
+tests/                      # 12 个单测(核心逻辑 + agent 循环 mock)
+```
 ```
 
 ## License

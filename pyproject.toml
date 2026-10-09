@@ -3,7 +3,7 @@ name = "reflex-rag"
 version = "0.1.0"
 description = "ReflexRAG: 自适应反思式检索问答系统(劳动法域) — 自适应路由 + 迭代检索 + 引用自校验 + 评测流水线"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
     "fastapi>=0.115",
@@ -31,12 +31,16 @@ build-backend = "hatchling.build"
 packages = ["src/reflex_rag"]
 
 [tool.ruff]
-line-length = 100
-target-version = "py311"
+line-length = 120
+target-version = "py312"
 src = ["src", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# 中文提示词文本, 折行会破坏措辞
+"src/reflex_rag/agent/prompts.py" = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

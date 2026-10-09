@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import random
 import re
-import time
 from collections.abc import Awaitable, Callable
 
 from openai import APIConnectionError, AsyncOpenAI, BadRequestError, RateLimitError
@@ -85,6 +84,5 @@ class EmbeddingClient:
     async def dimension(self) -> int:
         """探测向量维度(建集合时需要), 结果缓存。"""
         if self._dim is None:
-            t0 = time.perf_counter()
             self._dim = len(await self.embed_query("维度探测"))
         return self._dim

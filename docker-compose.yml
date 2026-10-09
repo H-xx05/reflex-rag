@@ -1,0 +1,31 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':< /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      # 服务端模式: 多客户端可并发访问, 根治本地嵌入模式的独占锁问题
+      QDRANT_URL: http://qdrant:6333
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    volumes:
+      # bm25.pkl / chunks.json / corpus 挂载进来; 首次启动先执行摄取:
+      #   docker compose exec api python scripts/ingest.py --rebuild
+      - ./data:/app/data
+
+volumes:
+  qdrant_data:

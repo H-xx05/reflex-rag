@@ -16,9 +16,14 @@ def _uuid(chunk_id: str) -> str:
 
 
 class VectorStore:
-    def __init__(self, path: Path, collection: str) -> None:
+    """本地嵌入模式(path)或服务端模式(url)。服务端模式支持多客户端并发访问。"""
+
+    def __init__(self, path: Path, collection: str, *, url: str | None = None) -> None:
         self.collection = collection
-        self.client = AsyncQdrantClient(path=str(path))
+        if url:
+            self.client = AsyncQdrantClient(url=url)
+        else:
+            self.client = AsyncQdrantClient(path=str(path))
 
     async def ensure_collection(self, dim: int, *, rebuild: bool = False) -> None:
         if rebuild and await self.client.collection_exists(self.collection):

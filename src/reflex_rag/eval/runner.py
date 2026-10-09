@@ -63,14 +63,21 @@ class EvalRunner:
         self.llm = LLMClient(self.settings)
         self.embedding = EmbeddingClient(self.settings)
         # 本地 Qdrant 是独占文件锁, Web 服务运行时会挡住评测进程。
-        # 评测对索引只读(摄取后不变), 复制一份快照即可安全解耦。
-        src = self.settings.index_dir / "qdrant"
-        snapshot = self.settings.index_dir / "qdrant_eval_snapshot"
-        if snapshot.exists():
-            shutil.rmtree(snapshot)
-        # .lock 被运行中的服务持有, 快照跳过它(Qdrant 打开时会自建)
-        shutil.copytree(src, snapshot, ignore=shutil.ignore_patterns(".lock"))
-        self.store = VectorStore(snapshot, self.settings.qdrant_collection)
+        # 评测对索引只读(摄取后不变), 复制一份快照即可安全解耦; 服务端模式无此问题。
+        if self.settings.qdrant_url:
+            self.store = VectorStore(
+                self.settings.index_dir / "qdrant",
+                self.settings.qdrant_collection,
+                url=self.settings.qdrant_url,
+            )
+        else:
+            src = self.settings.index_dir / "qdrant"
+            snapshot = self.settings.index_dir / "qdrant_eval_snapshot"
+            if snapshot.exists():
+                shutil.rmtree(snapshot)
+            # .lock 被运行中的服务持有, 快照跳过它(Qdrant 打开时会自建)
+            shutil.copytree(src, snapshot, ignore=shutil.ignore_patterns(".lock"))
+            self.store = VectorStore(snapshot, self.settings.qdrant_collection)
         self.bm25 = BM25Index.load(self.settings.index_dir / "bm25.pkl")
         self.judge = AnswerJudge(self.llm)
         self.judge_usage = Usage()
@@ -129,55 +136,8 @@ class EvalRunner:
         sem = asyncio.Semaphore(concurrency)
         rows = []
         for pname in profile_names:
-            profile = PROFILES[pname]
-            rt = self.build_runtime(profile)
-            print(f"[e2e] 配置 {pname} 开始, {len(items)} 题…")
-
-            async def one(item: GoldenItem) -> E2EItemResult:
-                async with sem:
-                    t0 = time.perf_counter()
-                    try:
-                        res = await rt.pipeline.answer(item.question)
-                    except Exception as exc:  # noqa: BLE001 — 单题失败不炸整轮, 记为错误样本
-                        return E2EItemResult(
-                            id=item.id,
-                            expected_route=item.expected_route.value,
-                            pred_route="error",
-                            route_ok=False,
-                            latency_ms=int((time.perf_counter() - t0) * 1000),
-                            issues=[f"pipeline_error: {str(exc)[:120]}"],
-                        )
-                    rec = E2EItemResult(
-                        id=item.id,
-                        expected_route=item.expected_route.value,
-                        pred_route=res.route.value,
-                        route_ok=res.route == item.expected_route,
-                        rounds=res.rounds,
-                        n_citations=len(res.citations),
-                        latency_ms=res.total_latency_ms,
-                        prompt_tokens=res.usage.prompt_tokens,
-                        completion_tokens=res.usage.completion_tokens,
-                        answer=res.answer,
-                    )
-
-                    if item.gold_chunk_ids:
-                        rec.evidence_recall = round(
-                            recall_at_k([rc.chunk_id for rc in res.evidence], item.gold_chunk_ids, 8), 4
-                        )
-                    if item.expected_route in (Route.simple, Route.multi_hop):
-                        jr = await self.judge.judge_answer(
-                            item.question, item.gold_answer, evidence_digest(res.evidence),
-                            res.answer, self.judge_usage,
-                        )
-                        rec.faithfulness, rec.correctness = jr.faithfulness, jr.correctness
-                        rec.issues = jr.issues
-                    elif item.expected_route == Route.out_of_scope:
-                        jr = await self.judge.judge_refusal(item.question, res.answer, self.judge_usage)
-                        rec.refusal_ok = jr.is_refusal
-                    return rec
-
-            results: list[E2EItemResult] = await asyncio.gather(*[one(it) for it in items])
-            rows.append(self._aggregate(pname, results))
+            row, results = await self._eval_profile(pname, PROFILES[pname], items, sem)
+            rows.append(row)
             self.last_e2e_items.extend({**asdict(r), "config": pname} for r in results)
             # 每个配置跑完立即落盘, 防止后续配置异常导致整轮白跑
             if checkpoint_dir:
@@ -187,6 +147,59 @@ class EvalRunner:
                 )
             print(f"[e2e] 配置 {pname} 完成: {rows[-1]['route_accuracy']:.0%} 路由准确率")
         return rows
+
+    async def _eval_profile(
+        self, pname: str, profile: EvalProfile, items: list[GoldenItem], sem: asyncio.Semaphore
+    ) -> tuple[dict, list[E2EItemResult]]:
+        """跑单个配置的全部题目, 返回 (聚合行, 逐题明细)。"""
+        rt = self.build_runtime(profile)
+        print(f"[e2e] 配置 {pname} 开始, {len(items)} 题…")
+
+        async def one(item: GoldenItem) -> E2EItemResult:
+            async with sem:
+                t0 = time.perf_counter()
+                try:
+                    res = await rt.pipeline.answer(item.question)
+                except Exception as exc:  # noqa: BLE001 — 单题失败不炸整轮, 记为错误样本
+                    return E2EItemResult(
+                        id=item.id,
+                        expected_route=item.expected_route.value,
+                        pred_route="error",
+                        route_ok=False,
+                        latency_ms=int((time.perf_counter() - t0) * 1000),
+                        issues=[f"pipeline_error: {str(exc)[:120]}"],
+                    )
+                rec = E2EItemResult(
+                    id=item.id,
+                    expected_route=item.expected_route.value,
+                    pred_route=res.route.value,
+                    route_ok=res.route == item.expected_route,
+                    rounds=res.rounds,
+                    n_citations=len(res.citations),
+                    latency_ms=res.total_latency_ms,
+                    prompt_tokens=res.usage.prompt_tokens,
+                    completion_tokens=res.usage.completion_tokens,
+                    answer=res.answer,
+                )
+
+                if item.gold_chunk_ids:
+                    rec.evidence_recall = round(
+                        recall_at_k([rc.chunk_id for rc in res.evidence], item.gold_chunk_ids, 8), 4
+                    )
+                if item.expected_route in (Route.simple, Route.multi_hop):
+                    jr = await self.judge.judge_answer(
+                        item.question, item.gold_answer, evidence_digest(res.evidence),
+                        res.answer, self.judge_usage,
+                    )
+                    rec.faithfulness, rec.correctness = jr.faithfulness, jr.correctness
+                    rec.issues = jr.issues
+                elif item.expected_route == Route.out_of_scope:
+                    jr = await self.judge.judge_refusal(item.question, res.answer, self.judge_usage)
+                    rec.refusal_ok = jr.is_refusal
+                return rec
+
+        results = await asyncio.gather(*[one(it) for it in items])
+        return self._aggregate(pname, results), results
 
     def _aggregate(self, pname: str, rs: list[E2EItemResult]) -> dict:
         # 错误样本(连接失败等)单独计错误率, 不混入任何均值, 避免拉低/扭曲指标

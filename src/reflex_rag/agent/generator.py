@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from reflex_rag.agent.prompts import GENERATOR_SYSTEM
 from reflex_rag.agent.schemas import Citation

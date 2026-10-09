@@ -132,7 +132,7 @@ async def gen_single(llm: LLMClient, usage: Usage, c: Chunk, sem: asyncio.Semaph
         return None
 
 
-async def gen_multi(llm: LLMClient, usage: Usage, a: Chunk, b: Chunk, sem: asyncio.Semaphore, idx: int) -> GoldenItem | None:
+async def gen_multi(llm: LLMClient, usage: Usage, a: Chunk, b: Chunk, sem: asyncio.Semaphore, idx: int) -> GoldenItem | None:  # noqa: E501
     async with sem:
         for _ in range(2):
             try:

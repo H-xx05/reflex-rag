@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
+from reflex_rag.agent.generator import extract_citations
 from reflex_rag.ingestion.chunker import chunk_document
 from reflex_rag.ingestion.loaders import Document
 from reflex_rag.llm.client import parse_json_dict
 from reflex_rag.retrieval.fusion import rrf_fuse
-from reflex_rag.agent.generator import extract_citations
 from reflex_rag.schemas import RetrievedChunk
 
 
@@ -68,10 +68,12 @@ def test_rrf_prefers_consensus():
 
 
 def test_parse_json_dict_variants():
+    from reflex_rag.llm.client import LLMError
+
     assert parse_json_dict('{"a": 1}') == {"a": 1}
     assert parse_json_dict('```json\n{"a": 1}\n```') == {"a": 1}
     assert parse_json_dict('前置说明 {"a": {"b": 2}} 后缀') == {"a": {"b": 2}}
-    with pytest.raises(Exception):
+    with pytest.raises(LLMError):
         parse_json_dict("完全不是json")
 
 

@@ -1,0 +1,16 @@
+.venv/
+.git/
+.github/
+.mimosa/
+.zcode/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+data/index/
+data/eval_reports/
+data/golden/
+.env
+*.md
+!README.md

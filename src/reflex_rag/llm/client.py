@@ -10,10 +10,11 @@ import json
 import random
 import re
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any
 
-from openai import APIConnectionError, APIStatusError, AsyncOpenAI, RateLimitError
+from openai import APIConnectionError, AsyncOpenAI, RateLimitError
 
 from reflex_rag.config import Settings
 
@@ -27,7 +28,7 @@ class Usage:
     completion_tokens: int = 0
     llm_calls: int = 0
 
-    def add(self, other: "Usage") -> None:
+    def add(self, other: Usage) -> None:
         self.prompt_tokens += other.prompt_tokens
         self.completion_tokens += other.completion_tokens
         self.llm_calls += other.llm_calls

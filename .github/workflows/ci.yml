@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安装依赖
+        run: pip install -e .[dev]
+
+      - name: 代码规范
+        run: ruff check src scripts tests
+
+      - name: 单元测试
+        run: pytest -q
+
+      - name: 冒烟: 模块可导入且 API 能构建
+        run: python -c "import reflex_rag.api.main, reflex_rag.eval.runner; print('imports ok')"

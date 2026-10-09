@@ -10,8 +10,8 @@ import time
 
 from reflex_rag.agent.prompts import SUFFICIENCY_PROMPT
 from reflex_rag.agent.schemas import AnalysisResult, Route, SufficiencyVerdict, TraceEvent
-from reflex_rag.llm.client import LLMClient, Usage, parse_json_dict
 from reflex_rag.config import Settings
+from reflex_rag.llm.client import LLMClient, Usage, parse_json_dict
 from reflex_rag.retrieval.hybrid import HybridRetriever
 from reflex_rag.schemas import RetrievedChunk
 

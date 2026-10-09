@@ -54,7 +54,9 @@ def build_runtime(
 
     llm = llm or LLMClient(settings)
     embedding = embedding or EmbeddingClient(settings)
-    store = store or VectorStore(settings.index_dir / "qdrant", settings.qdrant_collection)
+    store = store or VectorStore(
+        settings.index_dir / "qdrant", settings.qdrant_collection, url=settings.qdrant_url or None
+    )
     bm25 = bm25 or BM25Index.load(settings.index_dir / "bm25.pkl")
     corpus_titles = sorted({c.title for c in bm25.chunks})
 
