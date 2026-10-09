@@ -25,5 +25,5 @@ jobs:
       - name: 单元测试
         run: pytest -q
 
-      - name: 冒烟: 模块可导入且 API 能构建
+      - name: 冒烟:模块可导入且 API 能构建
         run: python -c "import reflex_rag.api.main, reflex_rag.eval.runner; print('imports ok')"
